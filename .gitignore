@@ -54,3 +54,7 @@ Thumbs.db
 # Claude
 .claude/
 memory/
+
+# Prompt and documentation files
+prompt.txt
+使用指南.md
