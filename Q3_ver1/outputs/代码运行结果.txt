@@ -1,0 +1,215 @@
+C:\Users\24735\anaconda3\envs\Mathmodeling\python.exe "D:\Mathematical modeling\MCM_C\Q3_ver1\dual_branch_analysis.py" 
+使用设备: cuda
+
+================================================================================
+舞蹈比赛双分支神经网络分析系统
+================================================================================
+================================================================================
+步骤1：加载数据
+================================================================================
+✓ 加载主数据集: (4134, 34)
+✓ 加载粉丝投票数据: (2339, 24)
+✓ 加载争议选手数据: (4, 10)
+
+================================================================================
+步骤2：整合数据
+================================================================================
+✓ 合并粉丝投票数据后: (4134, 35)
+✓ 标记争议选手: 47 个争议选手记录
+✓ 最终整合数据集: (4134, 37)
+✓ 包含列: ['season', 'celebrity_name', 'ballroom_partner', 'celebrity_industry', 'celebrity_homestate', 'celebrity_homecountry/region', 'celebrity_age_during_season', 'results', 'placement', 'elimination_type', 'week_eliminated', 'season_max_week', 'week', 'total_judge_score', 'in_competition', 'eliminated_this_week', 'is_final_week', 'relative_level', 'withdrew', 'non_competition_week', 'celebrity_industry_encoded', 'celebrity_homestate_encoded', 'celebrity_homecountry/region_encoded', 'ballroom_partner_encoded', 'celebrity_age_during_season_bin', 'celebrity_age_during_season_bin_encoded', 'season_stage', 'season_stage_encoded', 'relative_score_to_week_avg', 'weeks_to_elimination', 'all_star_season', 'controversial_contestant', 'controversial_name', 'judge_save', 'fan_votes', 'is_controversial', 'voting_mechanism']
+
+================================================================================
+步骤3：数据清洗
+================================================================================
+评委评分缺失: 0
+粉丝投票缺失: 3479
+✓ 删除目标变量缺失行: 3479 行
+✓ 保留正常比赛数据: 655 行
+✓ 清洗后数据集: (655, 37)
+
+================================================================================
+步骤4：特征工程
+================================================================================
+✓ 数值特征 (5): ['celebrity_age_during_season', 'relative_level', 'week', 'season', 'relative_score_to_week_avg']
+✓ 分类特征 (6): ['celebrity_industry', 'ballroom_partner', 'season_stage', 'celebrity_age_during_season_bin', 'voting_mechanism', 'is_controversial']
+✓ 创建特征交叉: industry_controversial
+✓ 目标变量统计:
+  - 评委评分: 均值=27.10, 标准差=7.40
+  - 粉丝投票: 均值=3339.27, 标准差=2841.42
+
+================================================================================
+步骤6：数据集划分
+================================================================================
+✓ 总选手数: 107
+✓ 训练集: 426 行, 74 个选手
+✓ 验证集: 152 行, 21 个选手
+✓ 测试集: 77 行, 12 个选手
+
+================================================================================
+步骤5：特征编码与标准化
+================================================================================
+✓ 编码 7 个分类特征
+✓ 标准化 5 个数值特征
+✓ 总特征数: 12
+✓ 创建数据加载器: batch_size=64
+  - 训练批次: 7
+  - 验证批次: 3
+  - 测试批次: 2
+
+================================================================================
+构建双分支神经网络
+================================================================================
+✓ 模型构建完成
+  - 输入维度: 12
+  - 总参数量: 14530
+
+================================================================================
+开始训练双分支神经网络
+================================================================================
+Epoch 10/100:
+  训练损失: 19658059.0000 (评委: 489.7072, 粉丝: 19657569.4286)
+  验证损失: 18735868.6667 (评委: 639.3327, 粉丝: 18735229.6667)
+  学习率: 0.001000
+Epoch 20/100:
+  训练损失: 18901365.8571 (评委: 435.0682, 粉丝: 18900930.4286)
+  验证损失: 18666231.3333 (评委: 702.1707, 粉丝: 18665529.3333)
+  学习率: 0.001000
+Epoch 30/100:
+  训练损失: 18052585.7143 (评委: 412.9321, 粉丝: 18052172.8571)
+  验证损失: 18528014.3333 (评委: 707.4278, 粉丝: 18527306.6667)
+  学习率: 0.001000
+Epoch 40/100:
+  训练损失: 17379710.8571 (评委: 363.6769, 粉丝: 17379347.1429)
+  验证损失: 18191433.0000 (评委: 651.5134, 粉丝: 18190781.3333)
+  学习率: 0.001000
+Epoch 50/100:
+  训练损失: 15191693.5714 (评委: 348.1866, 粉丝: 15191345.2857)
+  验证损失: 17484246.3333 (评委: 596.5197, 粉丝: 17483649.6667)
+  学习率: 0.001000
+Epoch 60/100:
+  训练损失: 12873147.7143 (评委: 305.8234, 粉丝: 12872841.8571)
+  验证损失: 15923499.0000 (评委: 481.4472, 粉丝: 15923017.6667)
+  学习率: 0.001000
+Epoch 70/100:
+  训练损失: 10362938.7857 (评委: 257.7483, 粉丝: 10362681.0000)
+  验证损失: 12917577.6667 (评委: 301.2337, 粉丝: 12917277.0000)
+  学习率: 0.001000
+Epoch 80/100:
+  训练损失: 8168398.4286 (评委: 233.9558, 粉丝: 8168164.5000)
+  验证损失: 9631792.5000 (评委: 226.0843, 粉丝: 9631566.3333)
+  学习率: 0.001000
+Epoch 90/100:
+  训练损失: 6423285.6429 (评委: 210.9665, 粉丝: 6423074.7857)
+  验证损失: 8096138.5000 (评委: 192.7274, 粉丝: 8095945.6667)
+  学习率: 0.001000
+Epoch 100/100:
+  训练损失: 5652387.1071 (评委: 182.5218, 粉丝: 5652204.6429)
+  验证损失: 7413822.3333 (评委: 162.7649, 粉丝: 7413659.4167)
+  学习率: 0.001000
+
+训练完成! 最佳验证损失: 7360888.8333
+✓ 保存训练历史图: outputs\metrics\training_history.png
+
+================================================================================
+评估模型: 测试集
+================================================================================
+
+评委评分预测:
+  MSE:  114.2783
+  RMSE: 10.6901
+  MAE:  8.6197
+  R²:   -1.6072
+  MAPE: 36.79%
+
+粉丝投票预测:
+  MSE:  4571058.5000
+  RMSE: 2138.0034
+  MAE:  1500.0221
+  R²:   0.3624
+  MAPE: 56.12%
+
+✓ 保存预测结果到: outputs\metrics\predictions.csv
+✓ 保存预测对比图: outputs\metrics\predictions_vs_actual.png
+✓ 保存残差图: outputs\metrics\residuals.png
+
+================================================================================
+训练XGBoost基准模型
+================================================================================
+
+训练评委评分预测模型...
+✓ 评委评分模型训练完成
+
+训练粉丝投票预测模型...
+✓ 粉丝投票模型训练完成
+
+================================================================================
+基准模型对比
+================================================================================
+
+模型对比:
+------------------------------------------------------------
+指标              神经网络(评委)             XGBoost(评委)         
+------------------------------------------------------------
+R²              -1.6072              0.6992              
+RMSE            10.6901              3.6308              
+MAE             8.6197               2.5566              
+
+
+------------------------------------------------------------
+指标              神经网络(粉丝)             XGBoost(粉丝)         
+------------------------------------------------------------
+R²              0.3624               0.4007              
+RMSE            2138.0034            2072.8743           
+MAE             1500.0221            1451.3020           
+
+✓ 保存对比结果到: outputs\metrics\baseline_comparison.csv
+
+================================================================================
+SHAP全局解释分析
+================================================================================
+✓ 创建DeepExplainer (背景样本数: 77)
+2026-02-02 18:25:11.461128: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-02-02 18:25:15.813933: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+Traceback (most recent call last):
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\tensorflow\python\util\lazy_loader.py", line 147, in _initialize
+    import keras  # pylint: disable=g-import-not-at-top
+    ^^^^^^^^^^^^
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\keras\__init__.py", line 32, in <module>
+    from keras import saving as saving
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\keras\saving\__init__.py", line 7, in <module>
+    from keras.src.saving.file_editor import KerasFileEditor as KerasFileEditor
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\keras\src\saving\file_editor.py", line 7, in <module>
+    import h5py
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\h5py\__init__.py", line 33, in <module>
+    from . import version
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\h5py\version.py", line 15, in <module>
+    from . import h5 as _h5
+  File "h5py/h5.pyx", line 1, in init h5py.h5
+ImportError: DLL load failed while importing defs: 找不到指定的程序。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Mathematical modeling\MCM_C\Q3_ver1\dual_branch_analysis.py", line 1192, in <module>
+    main()
+  File "D:\Mathematical modeling\MCM_C\Q3_ver1\dual_branch_analysis.py", line 1159, in main
+    shap_judge, shap_fan = shap_analyzer.analyze_global_shap(
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Mathematical modeling\MCM_C\Q3_ver1\dual_branch_analysis.py", line 837, in analyze_global_shap
+    explainer_judge = shap.DeepExplainer(judge_model_wrapper, background)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\shap\explainers\_deep\__init__.py", line 93, in __init__
+    self.explainer = TFDeep(model, data, session, learning_phase_flags)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\shap\explainers\_deep\deep_tf.py", line 99, in __init__
+    self.model_inputs = _get_model_inputs(model)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\shap\explainers\tf_utils.py", line 72, in _get_model_inputs
+    or isinstance(model, tf.keras.Model)
+                         ^^^^^^^^^^^^^^
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\tensorflow\python\util\lazy_loader.py", line 181, in __getattr__
+    self._initialize()
+  File "C:\Users\24735\anaconda3\envs\Mathmodeling\Lib\site-packages\tensorflow\python\util\lazy_loader.py", line 161, in _initialize
+    raise ImportError(  # pylint: disable=raise-missing-from
+ImportError: Keras cannot be imported. Check that it is installed.

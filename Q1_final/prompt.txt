@@ -1,0 +1,410 @@
+以下是整理好的**建模代码编写步骤**，你可以直接将其提供给AI编程助手（如GitHub Copilot、Claude Code、Cursor等）进行代码实现：
+
+---
+
+## **建模代码编写步骤（AI编程助手版）**
+
+### **一、环境准备与数据加载**
+
+```python
+# 1. 导入必要库
+import pandas as pd
+import numpy as np
+import json
+from scipy import optimize, stats
+import pystan  # 或使用 PyMC3/Bambi 替代
+import pulp  # 用于整数规划
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
+import warnings
+warnings.filterwarnings('ignore')
+
+# 2. 加载数据
+final_df = pd.read_csv('dance_competition_final_processed.csv')
+constraints = json.load(open('fan_vote_constraints.json', 'r'))
+features_df = pd.read_csv('dance_competition_features.csv')
+
+# 3. 数据清洗（按文档筛选）
+mask = (final_df['in_competition'] == True) & (final_df['non_competition_week'] == False)
+model_df = final_df[mask].copy()
+```
+
+### **二、数据预处理与特征工程**
+
+```python
+# 1. 特征标准化（用于回归模型）
+from sklearn.preprocessing import StandardScaler
+
+numeric_features = ['relative_level', 'relative_score_to_week_avg', 'weeks_to_elimination']
+scaler = StandardScaler()
+model_df[numeric_features] = scaler.fit_transform(model_df[numeric_features])
+
+# 2. 创建选手固定效应映射
+contestant_effects = {name: idx for idx, name in enumerate(model_df['celebrity_name'].unique())}
+model_df['contestant_id'] = model_df['celebrity_name'].map(contestant_effects)
+
+# 3. 创建季节-周次复合ID
+model_df['season_week'] = model_df['season'].astype(str) + '_' + model_df['week'].astype(str)
+```
+
+### **三、建模方法实现**
+
+#### **3.1 结构化反推模型（OLS + 固定效应）**
+
+```python
+def structured_fan_vote_model(df):
+    """
+    结构化模型：log(V) = α_i + β*relative_level + γ*features + ε
+    使用面板回归（固定效应）
+    """
+    from linearmodels import PanelOLS
+    
+    # 设置面板数据结构
+    df_panel = df.set_index(['contestant_id', 'season_week'])
+    
+    # 准备特征矩阵X和目标变量y（这里y是待估计的log(粉丝投票)）
+    # 注意：实际应用中需使用约束条件迭代求解
+    X = df_panel[['relative_level', 'celebrity_age_during_season_bin_encoded', 
+                  'celebrity_industry_encoded', 'controversial_contestant']]
+    X = pd.get_dummies(X, columns=['celebrity_industry_encoded'], drop_first=True)
+    
+    # 添加常数项
+    X['const'] = 1
+    
+    # 由于粉丝投票未知，这里为伪代码框架
+    # 实际实现需要与约束条件结合，使用迭代算法
+    return None  # 返回估计的粉丝投票
+```
+
+#### **3.2 排名法模型（整数规划）**
+
+```python
+def rank_based_model(season_week_constraint):
+    """
+    排名法模型（Seasons 1-2, 28-34）
+    使用整数规划求解粉丝排名
+    """
+    constraint = season_week_constraint
+    num_contestants = constraint['num_contestants']
+    
+    # 创建整数规划问题
+    prob = pulp.LpProblem("FanRankEstimation", pulp.LpMinimize)
+    
+    # 定义决策变量：粉丝排名（1到n）
+    fan_ranks = {}
+    for contestant in constraint['contestant_list']:
+        fan_ranks[contestant] = pulp.LpVariable(f"rank_{contestant}", 
+                                               lowBound=1, 
+                                               upBound=num_contestants, 
+                                               cat='Integer')
+    
+    # 目标函数：最小化粉丝排名与评委排名的差异
+    prob += pulp.lpSum([abs(fan_ranks[c] - constraint['judge_ranks'][c]) 
+                       for c in constraint['contestant_list']])
+    
+    # 约束1：所有排名必须是1到n的不同整数
+    prob += pulp.lpSum([fan_ranks[c] for c in constraint['contestant_list']]) == sum(range(1, num_contestants+1))
+    
+    # 约束2：淘汰者的总排名（评委+粉丝）必须大于非淘汰者
+    for eliminated in constraint['eliminated_list']:
+        for safe in [c for c in constraint['contestant_list'] if c not in constraint['eliminated_list']]:
+            prob += (constraint['judge_ranks'][eliminated] + fan_ranks[eliminated] >= 
+                    constraint['judge_ranks'][safe] + fan_ranks[safe] + 1)
+    
+    # 求解
+    prob.solve()
+    
+    # 提取结果
+    fan_rank_results = {c: int(pulp.value(fan_ranks[c])) for c in constraint['contestant_list']}
+    return fan_rank_results
+```
+
+#### **3.3 百分比法模型（贝叶斯 + MCMC）**
+
+```python
+def percentage_based_model(season_week_constraint, n_samples=5000):
+    """
+    百分比法模型（Seasons 3-27）
+    使用贝叶斯推断，Dirichlet先验，MCMC采样
+    """
+    # 定义Stan模型代码
+    stan_code = """
+    data {
+        int<lower=1> N;  // 选手数量
+        vector[N] judge_percents;  // 评委百分比
+        int<lower=0, upper=N> eliminated_idx;  // 淘汰者索引
+        real<lower=0> total_votes;  // 总票数（假设）
+    }
+    parameters {
+        simplex[N] fan_percents;  // 粉丝百分比（单纯形约束）
+    }
+    transformed parameters {
+        vector[N] total_percents = (judge_percents + fan_percents) / 2;
+    }
+    model {
+        // 先验：Dirichlet分布，参数为1（均匀先验）
+        fan_percents ~ dirichlet(rep_vector(1, N));
+        
+        // 似然：淘汰者的总百分比必须小于非淘汰者
+        for (i in 1:N) {
+            if (i != eliminated_idx) {
+                total_percents[eliminated_idx] <= total_percents[i];
+            }
+        }
+    }
+    generated quantities {
+        vector[N] fan_votes = fan_percents * total_votes;
+    }
+    """
+    
+    # 准备数据
+    N = len(constraint['contestant_list'])
+    judge_percents = [constraint['judge_percents'][c] for c in constraint['contestant_list']]
+    eliminated_idx = constraint['contestant_list'].index(constraint['eliminated_list'][0]) + 1
+    
+    stan_data = {
+        'N': N,
+        'judge_percents': judge_percents,
+        'eliminated_idx': eliminated_idx,
+        'total_votes': 10000  # 假设总票数
+    }
+    
+    # 编译并运行模型
+    stan_model = pystan.StanModel(model_code=stan_code)
+    fit = stan_model.sampling(data=stan_data, iter=n_samples, chains=4)
+    
+    # 提取后验样本
+    fan_votes_samples = fit.extract()['fan_votes']
+    
+    # 计算点估计和置信区间
+    fan_votes_estimate = {
+        'mean': np.mean(fan_votes_samples, axis=0),
+        'std': np.std(fan_votes_samples, axis=0),
+        '95ci_lower': np.percentile(fan_votes_samples, 2.5, axis=0),
+        '95ci_upper': np.percentile(fan_votes_samples, 97.5, axis=0)
+    }
+    
+    return fan_votes_estimate, fit
+```
+
+#### **3.4 动态时变模型（状态空间模型）**
+
+```python
+def dynamic_fan_vote_model(df):
+    """
+    动态模型：考虑粉丝投票随时间的变化
+    使用隐马尔可夫模型或状态空间模型
+    """
+    # 按选手分组，构建时间序列
+    from statsmodels.tsa.statespace.structural import UnobservedComponents
+    
+    fan_vote_estimates = {}
+    
+    for contestant in df['celebrity_name'].unique():
+        contestant_data = df[df['celebrity_name'] == contestant].sort_values('week')
+        
+        # 使用状态空间模型（本地线性趋势）
+        model = UnobservedComponents(
+            contestant_data['relative_score_to_week_avg'],  # 使用相对评分作为观测
+            level='llevel',  # 局部水平
+            trend=True
+        )
+        
+        # 拟合模型
+        results = model.fit()
+        
+        # 预测粉丝投票趋势
+        fan_vote_estimates[contestant] = {
+            'trend': results.trend,
+            'smoothed_state': results.smoothed_state
+        }
+    
+    return fan_vote_estimates
+```
+
+### **四、模型验证与评估**
+
+```python
+def evaluate_model_consistency(constraints_df, fan_vote_estimates):
+    """
+    评估模型预测的淘汰结果与实际淘汰的一致性
+    """
+    correct_predictions = 0
+    total_weeks = len(constraints_df)
+    
+    for constraint in constraints_df:
+        # 获取该周所有选手的估计粉丝投票
+        contestant_votes = fan_vote_estimates[constraint['season_week']]
+        
+        # 计算综合得分（评委分+粉丝投票）
+        total_scores = {}
+        for contestant in constraint['contestant_list']:
+            judge_score = constraint['judge_percents'][contestant]
+            fan_vote = contestant_votes[contestant]
+            total_scores[contestant] = judge_score + fan_vote
+        
+        # 找出综合得分最低的选手（应该被淘汰）
+        predicted_eliminated = min(total_scores, key=total_scores.get)
+        
+        # 检查是否与实际淘汰一致
+        actual_eliminated = constraint['eliminated_list'][0]
+        if predicted_eliminated == actual_eliminated:
+            correct_predictions += 1
+    
+    # 计算评估指标
+    accuracy = correct_predictions / total_weeks
+    return {
+        'accuracy': accuracy,
+        'correct_predictions': correct_predictions,
+        'total_weeks': total_weeks
+    }
+
+def calculate_uncertainty_metrics(fan_vote_estimates):
+    """
+    计算不确定性度量
+    """
+    uncertainties = []
+    
+    for season_week, estimates in fan_vote_estimates.items():
+        if 'std' in estimates:
+            # 计算变异系数
+            cv = estimates['std'] / estimates['mean']
+            uncertainties.append({
+                'season_week': season_week,
+                'mean_std': np.mean(estimates['std']),
+                'mean_cv': np.mean(cv),
+                'confidence_width': np.mean(estimates['95ci_upper'] - estimates['95ci_lower'])
+            })
+    
+    return pd.DataFrame(uncertainties)
+```
+
+### **五、主流程函数**
+
+```python
+def main_modeling_pipeline():
+    """
+    主建模流程
+    """
+    print("开始粉丝投票估计建模...")
+    
+    # 1. 初始化数据结构
+    all_fan_vote_estimates = {}
+    
+    # 2. 按赛季规则选择模型
+    for constraint in constraints:
+        season = constraint['season']
+        week = constraint['week']
+        key = f"{season}_{week}"
+        
+        # 判断使用哪种模型
+        if season <= 2 or season >= 28:
+            print(f"赛季{season}第{week}周: 使用排名法模型")
+            fan_ranks = rank_based_model(constraint)
+            # 将排名转换为投票数
+            fan_votes = convert_ranks_to_votes(fan_ranks)
+            all_fan_vote_estimates[key] = fan_votes
+        
+        else:
+            print(f"赛季{season}第{week}周: 使用百分比法模型")
+            fan_votes, fit = percentage_based_model(constraint)
+            all_fan_vote_estimates[key] = fan_votes
+    
+    # 3. 模型验证
+    consistency_results = evaluate_model_consistency(constraints, all_fan_vote_estimates)
+    print(f"模型一致性准确率: {consistency_results['accuracy']:.2%}")
+    
+    # 4. 不确定性分析
+    uncertainty_df = calculate_uncertainty_metrics(all_fan_vote_estimates)
+    print("不确定性分析完成")
+    
+    # 5. 输出结果
+    output_results(all_fan_vote_estimates, consistency_results, uncertainty_df)
+    
+    return all_fan_vote_estimates, consistency_results, uncertainty_df
+
+def output_results(fan_votes, consistency, uncertainty):
+    """
+    输出建模结果
+    """
+    # 保存粉丝投票估计
+    votes_df = pd.DataFrame(fan_votes).T
+    votes_df.to_csv('estimated_fan_votes.csv')
+    
+    # 保存评估结果
+    with open('model_evaluation.json', 'w') as f:
+        json.dump({
+            'consistency_accuracy': consistency['accuracy'],
+            'total_weeks_evaluated': consistency['total_weeks'],
+            'uncertainty_summary': uncertainty.describe().to_dict()
+        }, f, indent=2)
+    
+    print("结果已保存到文件")
+```
+
+### **六、辅助函数**
+
+```python
+def convert_ranks_to_votes(ranks_dict, total_votes=10000):
+    """
+    将排名转换为投票数（假设排名倒数与票数成正比）
+    """
+    votes = {}
+    total_inverse = sum(1/r for r in ranks_dict.values())
+    
+    for contestant, rank in ranks_dict.items():
+        votes[contestant] = (1/rank) / total_inverse * total_votes
+    
+    return votes
+
+def sensitivity_analysis(constraint, param_variations):
+    """
+    灵敏度分析：改变模型参数，观察输出变化
+    """
+    results = []
+    
+    for param_value in param_variations:
+        # 修改模型参数
+        modified_constraint = constraint.copy()
+        # ... 参数修改逻辑
+        
+        # 重新运行模型
+        fan_votes = percentage_based_model(modified_constraint)[0]
+        results.append({
+            'param_value': param_value,
+            'fan_votes_mean': np.mean(fan_votes['mean']),
+            'fan_votes_std': np.mean(fan_votes['std'])
+        })
+    
+    return pd.DataFrame(results)
+```
+
+---
+
+## **执行命令**
+
+```python
+if __name__ == "__main__":
+    # 运行主建模流程
+    fan_vote_estimates, consistency_results, uncertainty_df = main_modeling_pipeline()
+    
+    # 输出摘要
+    print("\n=== 建模完成 ===")
+    print(f"估计了 {len(fan_vote_estimates)} 个比赛周的粉丝投票")
+    print(f"模型预测淘汰准确率: {consistency_results['accuracy']:.2%}")
+    print(f"平均不确定性(变异系数): {uncertainty_df['mean_cv'].mean():.3f}")
+```
+
+---
+
+## **注意事项（给AI编程助手）**
+
+1. **数据依赖**：确保所有CSV和JSON文件在正确路径
+2. **库安装**：需要安装 `pystan`, `pulp`, `linearmodels`, `statsmodels` 等库
+3. **计算资源**：贝叶斯MCMC采样可能需要较长时间，可考虑减少 `n_samples` 或使用变分推断
+4. **并行化**：可以考虑对每个赛季/周次进行并行处理以加速
+5. **结果解释**：输出应包括点估计和区间估计，便于后续分析
+
+---
+
+你可以将以上步骤直接提供给AI编程助手，它会根据这些详细的步骤说明生成完整的代码实现。需要特别注意的是贝叶斯模型部分，可能需要根据具体的Stan/PyMC3版本调整语法。
